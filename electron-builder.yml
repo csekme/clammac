@@ -1,0 +1,32 @@
+appId: com.clammac.app
+productName: ClamMac
+protocols:
+  - name: ClamMac scan
+    schemes: [clammac]
+directories:
+  buildResources: build
+  output: dist
+files:
+  - out/**
+  - '!**/.DS_Store'
+extraResources:
+  - from: resources/clamav/${arch}
+    to: clamav
+    filter: ['**/*']
+  - from: resources/icons
+    to: icons
+    filter: ['**/*.png']
+mac:
+  category: public.app-category.utilities
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  identity: MyDevCert
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  notarize: false
+npmRebuild: false
