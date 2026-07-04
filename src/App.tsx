@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Radar,
   ShieldAlert,
+  Globe,
   History,
   RefreshCw,
   Settings as SettingsIcon,
@@ -14,6 +15,7 @@ import { Badge } from '@/components/ui/badge'
 import Dashboard from '@/pages/Dashboard'
 import ScanPage from '@/pages/ScanPage'
 import QuarantinePage from '@/pages/QuarantinePage'
+import NetworkPage from '@/pages/NetworkPage'
 import HistoryPage from '@/pages/HistoryPage'
 import UpdatesPage from '@/pages/UpdatesPage'
 import SettingsPage from '@/pages/SettingsPage'
@@ -31,6 +33,7 @@ const NAV: { page: Page; label: string; icon: typeof LayoutDashboard }[] = [
   { page: 'dashboard', label: 'Áttekintés', icon: LayoutDashboard },
   { page: 'scan', label: 'Szkennelés', icon: Radar },
   { page: 'quarantine', label: 'Karantén', icon: ShieldAlert },
+  { page: 'network', label: 'Hálózat', icon: Globe },
   { page: 'history', label: 'Előzmények', icon: History },
   { page: 'updates', label: 'Frissítések', icon: RefreshCw },
   { page: 'settings', label: 'Beállítások', icon: SettingsIcon }
@@ -155,6 +158,7 @@ export default function App(): React.JSX.Element {
           {page === 'dashboard' && <Dashboard />}
           {page === 'scan' && <ScanPage />}
           {page === 'quarantine' && <QuarantinePage />}
+          {page === 'network' && <NetworkPage />}
           {page === 'history' && <HistoryPage />}
           {page === 'updates' && <UpdatesPage />}
           {page === 'settings' && <SettingsPage />}

@@ -23,5 +23,15 @@ export const IPC = {
   revealPath: 'shell:reveal',
   quickActionStatus: 'quick-action:status',
   installQuickAction: 'quick-action:install',
-  uninstallQuickAction: 'quick-action:uninstall'
+  uninstallQuickAction: 'quick-action:uninstall',
+  listConnections: 'network:connections',
+  listNetworkAlerts: 'network:alerts',
+  clearNetworkAlerts: 'network:clear-alerts',
+  feedStatus: 'feeds:status',
+  updateFeeds: 'feeds:update',
+  firewallStatus: 'firewall:status',
+  setAlf: 'firewall:set-alf',
+  refreshPfBlocklist: 'firewall:refresh-pf',
+  hostsStatus: 'hosts:status',
+  refreshHosts: 'hosts:refresh'
 } as const

@@ -4,12 +4,24 @@ import type {
   Detection,
   DbStatus,
   EngineStatus,
+  FirewallStatus,
+  HostsStatus,
+  NetworkAlert,
+  NetworkConnection,
   ScanProgress,
   ScanRecord,
-  Settings
+  Settings,
+  ThreatFeedStatus
 } from '@shared/types'
 
-export type Page = 'dashboard' | 'scan' | 'quarantine' | 'history' | 'updates' | 'settings'
+export type Page =
+  | 'dashboard'
+  | 'scan'
+  | 'quarantine'
+  | 'network'
+  | 'history'
+  | 'updates'
+  | 'settings'
 
 interface AppState {
   loaded: boolean
@@ -23,6 +35,11 @@ interface AppState {
   realtimeDetections: Detection[]
   scanLog: string[]
   scanLogId: string | null
+  connections: NetworkConnection[]
+  networkAlerts: NetworkAlert[]
+  feedStatus: ThreatFeedStatus | null
+  firewallStatus: FirewallStatus | null
+  hostsStatus: HostsStatus | null
   setPage: (page: Page) => void
   init: () => Promise<void>
   refresh: () => Promise<void>
@@ -41,6 +58,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   realtimeDetections: [],
   scanLog: [],
   scanLogId: null,
+  connections: [],
+  networkAlerts: [],
+  feedStatus: null,
+  firewallStatus: null,
+  hostsStatus: null,
 
   setPage: (page) => set({ page }),
 
@@ -81,10 +103,30 @@ export const useAppStore = create<AppState>((set, get) => ({
         case 'navigate':
           set({ page: event.payload.page })
           break
+        case 'network-connections':
+          set({ connections: event.payload })
+          break
+        case 'network-alert':
+          set({ networkAlerts: [event.payload, ...get().networkAlerts].slice(0, 200) })
+          break
+        case 'feed-status':
+          set({ feedStatus: event.payload })
+          break
+        case 'hosts-status':
+          set({ hostsStatus: event.payload })
+          break
+        case 'firewall-status':
+          set({ firewallStatus: event.payload })
+          break
       }
     })
     await get().refresh()
-    set({ loaded: true })
+    const [alerts, feedStatus, hostsStatus] = await Promise.all([
+      window.api.listNetworkAlerts().catch(() => []),
+      window.api.getFeedStatus().catch(() => null),
+      window.api.getHostsStatus().catch(() => null)
+    ])
+    set({ loaded: true, networkAlerts: alerts, feedStatus, hostsStatus })
     console.info('[ClamMac] UI ready')
   },
 

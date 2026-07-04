@@ -19,6 +19,12 @@ export const defaultSettings: Settings = {
   detectPua: false,
   autoQuarantine: true,
   scanCacheEnabled: true,
+  networkMonitorEnabled: true,
+  pfBlocklistEnabled: false,
+  hostsProtectionEnabled: false,
+  hostsBlockMalware: true,
+  hostsBlockTrackers: true,
+  hostsCustom: [],
   verboseScanLog: false,
   updateIntervalHours: 12,
   scheduledScan: { enabled: false, frequency: 'daily', time: '12:00' }

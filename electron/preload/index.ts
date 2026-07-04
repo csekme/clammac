@@ -3,10 +3,15 @@ import { EVENT_CHANNEL, IPC } from '@shared/channels'
 import type {
   AppEvent,
   AppStatus,
+  FirewallStatus,
+  HostsStatus,
+  NetworkAlert,
+  NetworkConnection,
   QuarantineItem,
   RestoreResult,
   ScanRecord,
   Settings,
+  ThreatFeedStatus,
   UpdateLogEntry
 } from '@shared/types'
 
@@ -43,6 +48,19 @@ const api = {
     ipcRenderer.invoke(IPC.quickActionStatus),
   installQuickAction: (): Promise<void> => ipcRenderer.invoke(IPC.installQuickAction),
   uninstallQuickAction: (): Promise<void> => ipcRenderer.invoke(IPC.uninstallQuickAction),
+
+  listConnections: (): Promise<NetworkConnection[]> => ipcRenderer.invoke(IPC.listConnections),
+  listNetworkAlerts: (): Promise<NetworkAlert[]> => ipcRenderer.invoke(IPC.listNetworkAlerts),
+  clearNetworkAlerts: (): Promise<void> => ipcRenderer.invoke(IPC.clearNetworkAlerts),
+  getFeedStatus: (): Promise<ThreatFeedStatus> => ipcRenderer.invoke(IPC.feedStatus),
+  updateFeeds: (): Promise<ThreatFeedStatus> => ipcRenderer.invoke(IPC.updateFeeds),
+  getFirewallStatus: (): Promise<FirewallStatus> => ipcRenderer.invoke(IPC.firewallStatus),
+  setAlf: (opts: { enabled?: boolean; stealth?: boolean }): Promise<FirewallStatus> =>
+    ipcRenderer.invoke(IPC.setAlf, opts),
+  refreshPfBlocklist: (): Promise<FirewallStatus> => ipcRenderer.invoke(IPC.refreshPfBlocklist),
+
+  getHostsStatus: (): Promise<HostsStatus> => ipcRenderer.invoke(IPC.hostsStatus),
+  refreshHosts: (): Promise<HostsStatus> => ipcRenderer.invoke(IPC.refreshHosts),
 
   /** Resolve a dropped File to its filesystem path (drag & drop scan). */
   getPathForFile: (file: File): string => webUtils.getPathForFile(file),

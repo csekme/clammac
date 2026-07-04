@@ -1,4 +1,15 @@
-import { ShieldCheck, ShieldAlert, ShieldX, Zap, HardDrive, RefreshCw, Loader2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import {
+  ShieldCheck,
+  ShieldAlert,
+  ShieldX,
+  Zap,
+  HardDrive,
+  RefreshCw,
+  Loader2,
+  Globe
+} from 'lucide-react'
+import type { FirewallStatus } from '@shared/types'
 import { useAppStore } from '@/stores/app-store'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -9,7 +20,30 @@ import ActivityChart from '@/components/ActivityChart'
 import { formatDate, formatDuration } from '@/lib/utils'
 
 export default function Dashboard(): React.JSX.Element {
-  const { engine, db, settings, lastScan, activeScan, setPage, patchSettings } = useAppStore()
+  const {
+    engine,
+    db,
+    settings,
+    lastScan,
+    activeScan,
+    connections,
+    networkAlerts,
+    feedStatus,
+    hostsStatus,
+    firewallStatus,
+    setPage,
+    patchSettings
+  } = useAppStore()
+  const [localFw, setLocalFw] = useState<FirewallStatus | null>(null)
+  // a store firewallStatus eseményre frissül; az induló értéket egyszer lekérjük
+  const firewall = firewallStatus ?? localFw
+
+  useEffect(() => {
+    window.api
+      .getFirewallStatus()
+      .then(setLocalFw)
+      .catch(() => setLocalFw(null))
+  }, [networkAlerts.length, settings?.pfBlocklistEnabled, feedStatus?.entryCount])
 
   const dbStale = !db?.updatedAt || Date.now() - db.updatedAt > 7 * 24 * 3600_000
   const scanning = activeScan !== null
@@ -49,6 +83,13 @@ export default function Dashboard(): React.JSX.Element {
     level = 'warn'
     headline = 'Az adatbázis elavult'
     detail = 'A szignatúrák több mint 7 napja nem frissültek — futtass frissítést.'
+  } else if (networkAlerts.length > 0) {
+    level = 'warn'
+    headline = 'Hálózati riasztás'
+    detail =
+      networkAlerts.length === 1
+        ? `Egy folyamat ismert kártevő-címhez kapcsolódott — nézd meg a Hálózat oldalon.`
+        : `${networkAlerts.length} folyamat kapcsolódott ismert kártevő-címhez — nézd meg a Hálózat oldalon.`
   }
 
   const HeroIcon = level === 'ok' ? ShieldCheck : level === 'warn' ? ShieldAlert : ShieldX
@@ -173,6 +214,103 @@ export default function Dashboard(): React.JSX.Element {
                     lastScan.detections.length
                   } találat · ${formatDuration(lastScan.startedAt, lastScan.finishedAt)}`
                 : 'még nem volt'}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* network security */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Globe className="h-4 w-4 text-primary" /> Hálózati biztonság
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto text-muted-foreground"
+              onClick={() => setPage('network')}
+            >
+              Részletek
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 p-6 pt-0 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Hálózati megfigyelés</span>
+            <Switch
+              checked={settings?.networkMonitorEnabled ?? false}
+              onCheckedChange={(v) => void patchSettings({ networkMonitorEnabled: v })}
+            />
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Hálózati riasztások</span>
+            <span>
+              {networkAlerts.length === 0 ? (
+                <Badge variant="success">nincs</Badge>
+              ) : (
+                <Badge variant="destructive">{networkAlerts.length} aktív</Badge>
+              )}
+            </span>
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Aktív kapcsolatok</span>
+            <span className="text-muted-foreground">
+              {settings?.networkMonitorEnabled ? `${connections.length} kimenő` : 'kikapcsolva'}
+            </span>
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-muted-foreground">Kártevő-IP blokkolás</span>
+            <span className="flex items-center gap-2">
+              {firewall?.pfBlocklistActive ? (
+                firewall.pfBlocklistOutdated ? (
+                  <>
+                    <Badge variant="warning">
+                      {firewall.pfBlocklistSize.toLocaleString('hu-HU')} /{' '}
+                      {firewall.feedSize.toLocaleString('hu-HU')} IP · elavult
+                    </Badge>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void window.api.refreshPfBlocklist().then(setLocalFw)}
+                    >
+                      Frissítés
+                    </Button>
+                  </>
+                ) : (
+                  <Badge variant="success">
+                    aktív · {firewall.pfBlocklistSize.toLocaleString('hu-HU')} IP
+                  </Badge>
+                )
+              ) : (
+                <Badge variant="secondary">kikapcsolva</Badge>
+              )}
+            </span>
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Domain-blokk (kártevő/követő)</span>
+            <span>
+              {hostsStatus?.active ? (
+                <Badge variant="success">
+                  aktív · {hostsStatus.blockedCount.toLocaleString('hu-HU')} domain
+                </Badge>
+              ) : (
+                <Badge variant="secondary">kikapcsolva</Badge>
+              )}
+            </span>
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Kártevő-IP adatbázis</span>
+            <span className="text-muted-foreground">
+              {feedStatus?.entryCount
+                ? `${feedStatus.entryCount.toLocaleString('hu-HU')} IP${
+                    feedStatus.updatedAt ? ` · ${formatDate(feedStatus.updatedAt)}` : ''
+                  }`
+                : 'még nincs letöltve'}
             </span>
           </div>
         </CardContent>

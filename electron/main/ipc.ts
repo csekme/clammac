@@ -6,7 +6,8 @@ import {
   ScanIdReq,
   QuarantineIdReq,
   SettingsPatch,
-  ChoosePathsReq
+  ChoosePathsReq,
+  SetAlfReq
 } from '@shared/ipc'
 import type { AppStatus } from '@shared/types'
 import type { Services } from './services/container'
@@ -31,7 +32,18 @@ function handle<S extends z.ZodTypeAny>(
 const Empty = z.object({}).passthrough()
 
 export function registerIpc(services: Services): void {
-  const { clamd, freshclam, scanner, quarantine, history, watcher } = services
+  const {
+    clamd,
+    freshclam,
+    scanner,
+    quarantine,
+    history,
+    watcher,
+    feeds,
+    network,
+    firewall,
+    hosts
+  } = services
 
   handle(IPC.getStatus, Empty, (): AppStatus => {
     return {
@@ -65,6 +77,7 @@ export function registerIpc(services: Services): void {
 
   handle(IPC.getSettings, Empty, () => getSettings())
   handle(IPC.setSettings, SettingsPatch, async (patch) => {
+    const previous = getSettings()
     const next = patchSettings(patch)
     if (
       patch.realtimeEnabled !== undefined ||
@@ -73,7 +86,35 @@ export function registerIpc(services: Services): void {
     ) {
       await watcher.sync()
     }
-    return next
+    if (patch.networkMonitorEnabled !== undefined) network.sync()
+    if (patch.pfBlocklistEnabled !== undefined) {
+      try {
+        await firewall.syncPf()
+      } catch (err) {
+        // pl. elvetett admin prompt — a kapcsoló visszaáll, a hiba a UI-é
+        patchSettings({ pfBlocklistEnabled: previous.pfBlocklistEnabled })
+        throw err
+      }
+    }
+    if (
+      patch.hostsProtectionEnabled !== undefined ||
+      patch.hostsBlockMalware !== undefined ||
+      patch.hostsBlockTrackers !== undefined ||
+      patch.hostsCustom !== undefined
+    ) {
+      try {
+        await hosts.sync()
+      } catch (err) {
+        patchSettings({
+          hostsProtectionEnabled: previous.hostsProtectionEnabled,
+          hostsBlockMalware: previous.hostsBlockMalware,
+          hostsBlockTrackers: previous.hostsBlockTrackers,
+          hostsCustom: previous.hostsCustom
+        })
+        throw err
+      }
+    }
+    return getSettings()
   })
 
   handle(IPC.choosePaths, ChoosePathsReq, async (req) => {
@@ -101,4 +142,16 @@ export function registerIpc(services: Services): void {
   }))
   handle(IPC.installQuickAction, Empty, () => installQuickAction())
   handle(IPC.uninstallQuickAction, Empty, () => uninstallQuickAction())
+
+  handle(IPC.listConnections, Empty, () => network.list())
+  handle(IPC.listNetworkAlerts, Empty, () => network.listAlerts())
+  handle(IPC.clearNetworkAlerts, Empty, () => network.clearAlerts())
+  handle(IPC.feedStatus, Empty, () => feeds.getStatus())
+  handle(IPC.updateFeeds, Empty, () => feeds.update())
+  handle(IPC.firewallStatus, Empty, () => firewall.getStatus())
+  handle(IPC.setAlf, SetAlfReq, (req) => firewall.setAlf(req))
+  handle(IPC.refreshPfBlocklist, Empty, () => firewall.refreshPf())
+
+  handle(IPC.hostsStatus, Empty, () => hosts.getStatus())
+  handle(IPC.refreshHosts, Empty, () => hosts.refresh())
 }

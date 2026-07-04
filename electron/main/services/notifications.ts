@@ -1,5 +1,5 @@
 import { Notification } from 'electron'
-import type { Detection } from '@shared/types'
+import type { Detection, NetworkAlert } from '@shared/types'
 import { getSettings } from './settings-store'
 
 function show(title: string, body: string): void {
@@ -24,5 +24,19 @@ export function notifyRealtimeDetection(detection: Detection): void {
   show(
     'ClamMac — Valós idejű védelem',
     `${detection.signature}\n${detection.path}\nA fájl karanténba került.`
+  )
+}
+
+export function notifyNetworkAlert(alert: NetworkAlert): void {
+  const what = alert.malware
+    ? `${alert.malware} C2`
+    : alert.category === 'c2'
+      ? 'ismert botnet C2'
+      : alert.category === 'attacker'
+        ? 'ismert támadó IP'
+        : 'ismert rosszindulatú cím'
+  show(
+    'ClamMac — Hálózati riasztás!',
+    `A(z) ${alert.connection.process} (PID ${alert.connection.pid}) ${what} címhez kapcsolódik: ${alert.connection.remoteIp}:${alert.connection.remotePort}${alert.blocked ? '\nA kapcsolat blokkolva.' : ''}`
   )
 }

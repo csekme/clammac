@@ -1,9 +1,12 @@
 import type { FreshclamService } from './freshclam'
 import type { ScanOrchestrator } from './scan-orchestrator'
 import type { ClamdManager } from './clamd-manager'
+import type { ThreatFeedService } from './threat-feeds'
+import type { HostsProtection } from './hosts-protection'
 import { getSettings } from './settings-store'
 
 const TICK_MS = 60_000
+const FEED_MAX_AGE_MS = 12 * 3600_000
 
 /**
  * In-app scheduler: periodic signature updates + scheduled scans.
@@ -16,7 +19,9 @@ export class SchedulerService {
   constructor(
     private freshclam: FreshclamService,
     private scanner: ScanOrchestrator,
-    private clamd: ClamdManager
+    private clamd: ClamdManager,
+    private feeds: ThreatFeedService,
+    private hosts: HostsProtection
   ) {}
 
   start(): void {
@@ -38,6 +43,24 @@ export class SchedulerService {
     const staleMs = s.updateIntervalHours * 3600_000
     if (!db.updating && (!db.present || !db.updatedAt || Date.now() - db.updatedAt > staleMs)) {
       void this.freshclam.update()
+    }
+
+    // threat-feed frissítés (csak ha a hálózati funkciók bármelyike aktív)
+    if (
+      (s.networkMonitorEnabled || s.pfBlocklistEnabled) &&
+      this.feeds.isStale(FEED_MAX_AGE_MS) &&
+      !this.feeds.getStatus().updating
+    ) {
+      void this.feeds.update()
+    }
+
+    // domain-feed frissítés (letöltés; a /etc/hosts újraírása user-akció marad)
+    if (
+      s.hostsProtectionEnabled &&
+      this.hosts.feedAgeMs() > FEED_MAX_AGE_MS &&
+      !this.hosts.getStatus().updating
+    ) {
+      void this.hosts.updateFeeds()
     }
 
     // scheduled scan

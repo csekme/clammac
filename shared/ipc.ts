@@ -26,6 +26,14 @@ export const SettingsPatch = z
     detectPua: z.boolean(),
     autoQuarantine: z.boolean(),
     scanCacheEnabled: z.boolean(),
+    networkMonitorEnabled: z.boolean(),
+    pfBlocklistEnabled: z.boolean(),
+    hostsProtectionEnabled: z.boolean(),
+    hostsBlockMalware: z.boolean(),
+    hostsBlockTrackers: z.boolean(),
+    hostsCustom: z
+      .array(z.object({ host: z.string().min(1).max(253), block: z.boolean() }))
+      .max(5000),
     verboseScanLog: z.boolean(),
     updateIntervalHours: z.number().int().min(1).max(168),
     scheduledScan: z.object({
@@ -40,3 +48,9 @@ export type SettingsPatch = z.infer<typeof SettingsPatch>
 export const ChoosePathsReq = z.object({
   directoriesOnly: z.boolean().optional()
 })
+
+export const SetAlfReq = z.object({
+  enabled: z.boolean().optional(),
+  stealth: z.boolean().optional()
+})
+export type SetAlfReq = z.infer<typeof SetAlfReq>

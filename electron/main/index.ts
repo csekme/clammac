@@ -121,6 +121,7 @@ if (!gotLock) {
     // boot the protection stack in the background
     void services.clamd.start().catch(() => undefined)
     void services.watcher.sync()
+    services.network.sync()
     services.scheduler.start()
 
     // replay URLs that arrived during cold start
@@ -141,6 +142,7 @@ if (!gotLock) {
 
   app.on('will-quit', (e) => {
     services?.scanCache.flush()
+    services?.network.stop()
     if (services?.clamd.getStatus().state === 'running') {
       e.preventDefault()
       void Promise.allSettled([services.watcher.stop(), services.clamd.stop()]).then(() =>

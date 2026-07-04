@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { FolderPlus, X } from 'lucide-react'
+import type { FirewallStatus } from '@shared/types'
+import { cn, formatDate } from '@/lib/utils'
 import { useAppStore } from '@/stores/app-store'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -32,6 +34,288 @@ function Row({
       </div>
       <div className="shrink-0">{children}</div>
     </div>
+  )
+}
+
+function FirewallCard(): React.JSX.Element {
+  const { settings, patchSettings } = useAppStore()
+  const [fw, setFw] = useState<FirewallStatus | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const refresh = (): void => {
+    window.api
+      .getFirewallStatus()
+      .then(setFw)
+      .catch(() => setFw(null))
+  }
+  useEffect(refresh, [])
+
+  const setAlf = async (opts: { enabled?: boolean; stealth?: boolean }): Promise<void> => {
+    setBusy(true)
+    setError(null)
+    try {
+      setFw(await window.api.setAlf(opts))
+    } catch (err) {
+      setError(String((err as Error).message ?? err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const togglePf = async (v: boolean): Promise<void> => {
+    setBusy(true)
+    setError(null)
+    try {
+      await patchSettings({ pfBlocklistEnabled: v })
+      refresh()
+    } catch (err) {
+      setError(String((err as Error).message ?? err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const refreshPf = async (): Promise<void> => {
+    setBusy(true)
+    setError(null)
+    try {
+      setFw(await window.api.refreshPfBlocklist())
+    } catch (err) {
+      setError(String((err as Error).message ?? err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!settings) return <></>
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Tűzfal és hálózat</CardTitle>
+        <CardDescription>
+          Hálózati megfigyelés és blokkolás a macOS beépített tűzfalaival. A be- és kikapcsolás
+          rendszergazdai jóváhagyást kér.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="divide-y">
+        <Row
+          label="Hálózati megfigyelés"
+          description="Kapcsolatok figyelése és riasztás ismert kártevő-IP-hez (abuse.ch feedek) kapcsolódáskor"
+        >
+          <Switch
+            checked={settings.networkMonitorEnabled}
+            onCheckedChange={(v) => void patchSettings({ networkMonitorEnabled: v })}
+          />
+        </Row>
+        <Row
+          label="Kártevő-IP-k blokkolása (PF)"
+          description="A threat-feedek IP-inek tényleges blokkolása a rendszer PF tűzfalával — admin jogot kér"
+        >
+          <Switch
+            checked={settings.pfBlocklistEnabled}
+            disabled={busy}
+            onCheckedChange={(v) => void togglePf(v)}
+          />
+        </Row>
+        <Row
+          label="macOS tűzfal (bejövő kapcsolatok)"
+          description={
+            fw?.alfEnabled === null || fw === null
+              ? 'Állapot nem olvasható'
+              : `Jelenleg ${fw.alfEnabled ? 'bekapcsolva' : 'kikapcsolva'}`
+          }
+        >
+          <Switch
+            checked={fw?.alfEnabled ?? false}
+            disabled={busy || fw === null || fw.alfEnabled === null}
+            onCheckedChange={(v) => void setAlf({ enabled: v })}
+          />
+        </Row>
+        <Row
+          label="Stealth mód"
+          description="A gép nem válaszol ping-re és kapcsolódási kísérletekre zárt portokon"
+        >
+          <Switch
+            checked={fw?.stealthEnabled ?? false}
+            disabled={busy || fw === null || fw.stealthEnabled === null}
+            onCheckedChange={(v) => void setAlf({ stealth: v })}
+          />
+        </Row>
+        {fw?.pfBlocklistActive &&
+          (fw.pfBlocklistOutdated ? (
+            <div className="flex items-center justify-between gap-3 pt-3">
+              <p className="text-xs text-warning">
+                A blokklista elavult: {fw.pfBlocklistSize.toLocaleString('hu-HU')} IP betöltve, de{' '}
+                {fw.feedSize.toLocaleString('hu-HU')} ismert. Frissítsd a friss listával.
+              </p>
+              <Button variant="outline" size="sm" disabled={busy} onClick={() => void refreshPf()}>
+                Blokklista frissítése
+              </Button>
+            </div>
+          ) : (
+            <p className="pt-3 text-xs text-muted-foreground">
+              {fw.pfBlocklistSize.toLocaleString('hu-HU')} kártevő-IP blokkolva a PF táblában.
+            </p>
+          ))}
+        {error && <p className="pt-3 text-xs text-destructive">{error}</p>}
+      </CardContent>
+    </Card>
+  )
+}
+
+function HostsCard(): React.JSX.Element {
+  const { settings, hostsStatus, patchSettings } = useAppStore()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [newHost, setNewHost] = useState('')
+
+  useEffect(() => {
+    window.api
+      .getHostsStatus()
+      .then((s) => useAppStore.setState({ hostsStatus: s }))
+      .catch(() => undefined)
+  }, [])
+
+  if (!settings) return <></>
+
+  const run = async (fn: () => Promise<unknown>): Promise<void> => {
+    setBusy(true)
+    setError(null)
+    try {
+      await fn()
+    } catch (err) {
+      setError(String((err as Error).message ?? err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const addEntry = (block: boolean): void => {
+    const host = newHost.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+    if (!host) return
+    setNewHost('')
+    const next = [...settings.hostsCustom.filter((e) => e.host !== host), { host, block }]
+    void run(() => patchSettings({ hostsCustom: next }))
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Domain-védelem</CardTitle>
+        <CardDescription>
+          Kártevő- és követő-domainek blokkolása a /etc/hosts fájlon keresztül (0.0.0.0-ra
+          irányítva). A be- és kikapcsolás rendszergazdai jóváhagyást kér. Megjegyzés: a titkosított
+          DNS-t (DoH) használó böngészők ezt megkerülhetik.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="divide-y">
+        <Row
+          label="Domain-védelem"
+          description="A kiválasztott listák és a saját bejegyzések érvényesítése a /etc/hosts fájlban"
+        >
+          <Switch
+            checked={settings.hostsProtectionEnabled}
+            disabled={busy}
+            onCheckedChange={(v) => void run(() => patchSettings({ hostsProtectionEnabled: v }))}
+          />
+        </Row>
+        <Row
+          label="Kártevő-domainek (URLhaus)"
+          description="abuse.ch friss kártevő- és adathalász-domainek"
+        >
+          <Switch
+            checked={settings.hostsBlockMalware}
+            disabled={busy || !settings.hostsProtectionEnabled}
+            onCheckedChange={(v) => void run(() => patchSettings({ hostsBlockMalware: v }))}
+          />
+        </Row>
+        <Row
+          label="Követők és reklámok (Hagezi Light)"
+          description="Nyomkövetők és reklám-domainek mérsékelt lista (~90 ezer domain)"
+        >
+          <Switch
+            checked={settings.hostsBlockTrackers}
+            disabled={busy || !settings.hostsProtectionEnabled}
+            onCheckedChange={(v) => void run(() => patchSettings({ hostsBlockTrackers: v }))}
+          />
+        </Row>
+
+        <div className="space-y-2 py-3">
+          <Label>Saját bejegyzések</Label>
+          <p className="text-xs text-muted-foreground">
+            Adj hozzá saját blokkolandó domaint, vagy engedélyezz egy listán szereplőt (kivétel).
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {settings.hostsCustom.map((e) => (
+              <span
+                key={e.host}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-md px-2 py-1 font-mono text-xs',
+                  e.block ? 'bg-destructive/15' : 'bg-success/15'
+                )}
+              >
+                {e.block ? '⊘' : '✓'} {e.host}
+                <button
+                  type="button"
+                  aria-label={`${e.host} törlése`}
+                  className="opacity-60 hover:opacity-100"
+                  onClick={() =>
+                    void run(() =>
+                      patchSettings({
+                        hostsCustom: settings.hostsCustom.filter((x) => x.host !== e.host)
+                      })
+                    )
+                  }
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <Input
+              placeholder="pl. rossz-domain.com"
+              value={newHost}
+              disabled={busy}
+              onChange={(e) => setNewHost(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addEntry(true)}
+            />
+            <Button variant="outline" disabled={busy} onClick={() => addEntry(true)}>
+              Blokkolás
+            </Button>
+            <Button variant="ghost" disabled={busy} onClick={() => addEntry(false)}>
+              Engedélyezés
+            </Button>
+          </div>
+        </div>
+
+        {settings.hostsProtectionEnabled && hostsStatus && (
+          <div className="flex items-center justify-between gap-3 pt-3">
+            <p className="text-xs text-muted-foreground">
+              {hostsStatus.active
+                ? `${hostsStatus.blockedCount.toLocaleString('hu-HU')} domain blokkolva${
+                    hostsStatus.updatedAt ? ` · lista frissítve ${formatDate(hostsStatus.updatedAt)}` : ''
+                  }`
+                : 'A védelem be van kapcsolva, de még nincs érvényesítve.'}
+              {hostsStatus.error && (
+                <span className="block text-warning">Hiba: {hostsStatus.error}</span>
+              )}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy || hostsStatus.updating}
+              onClick={() => void run(() => window.api.refreshHosts())}
+            >
+              {hostsStatus.updating ? 'Frissítés…' : 'Lista frissítése'}
+            </Button>
+          </div>
+        )}
+        {error && <p className="pt-3 text-xs text-destructive">{error}</p>}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -282,6 +566,10 @@ export default function SettingsPage(): React.JSX.Element {
           </div>
         </CardContent>
       </Card>
+
+      <FirewallCard />
+
+      <HostsCard />
 
       <QuickActionCard />
 
