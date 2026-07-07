@@ -31,6 +31,7 @@ const api = {
   clearHistory: (): Promise<void> => ipcRenderer.invoke(IPC.clearHistory),
 
   listUpdateLog: (): Promise<UpdateLogEntry[]> => ipcRenderer.invoke(IPC.listUpdateLog),
+  clearUpdateLog: (): Promise<void> => ipcRenderer.invoke(IPC.clearUpdateLog),
   runUpdate: (): Promise<UpdateLogEntry> => ipcRenderer.invoke(IPC.runUpdate),
 
   getSettings: (): Promise<Settings> => ipcRenderer.invoke(IPC.getSettings),

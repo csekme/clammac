@@ -73,6 +73,7 @@ export function registerIpc(services: Services): void {
   handle(IPC.clearHistory, Empty, () => history.clear())
 
   handle(IPC.listUpdateLog, Empty, () => freshclam.getLog())
+  handle(IPC.clearUpdateLog, Empty, () => freshclam.clearLog())
   handle(IPC.runUpdate, Empty, () => freshclam.update())
 
   handle(IPC.getSettings, Empty, () => getSettings())

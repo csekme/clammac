@@ -7,6 +7,8 @@ import { getSettings } from './settings-store'
 
 const TICK_MS = 60_000
 const FEED_MAX_AGE_MS = 12 * 3600_000
+/** sikertelen frissítés után ennyi idővel próbálkozunk újra */
+const FAIL_RETRY_MS = 15 * 60_000
 
 /**
  * In-app scheduler: periodic signature updates + scheduled scans.
@@ -38,10 +40,15 @@ export class SchedulerService {
   private async tick(): Promise<void> {
     const s = getSettings()
 
-    // signature updates
+    // signature updates — a db mtime-ját a freshclam nem frissíti, ha a tükrön
+    // nincs újabb adat, ezért az utolsó *ellenőrzés* idejét is számítani kell,
+    // különben a tick percenként újraindítaná a frissítést
     const db = this.clamd.getDbStatus(this.freshclam.isRunning())
     const staleMs = s.updateIntervalHours * 3600_000
-    if (!db.updating && (!db.present || !db.updatedAt || Date.now() - db.updatedAt > staleMs)) {
+    const last = this.freshclam.lastAttempt()
+    const checkedAt = Math.max(db.updatedAt ?? 0, last?.at ?? 0)
+    const dueMs = last && !last.ok ? Math.min(staleMs, FAIL_RETRY_MS) : staleMs
+    if (!db.updating && Date.now() - checkedAt > dueMs) {
       void this.freshclam.update()
     }
 

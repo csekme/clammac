@@ -14,6 +14,7 @@ export const IPC = {
   listHistory: 'history:list',
   clearHistory: 'history:clear',
   listUpdateLog: 'update:log',
+  clearUpdateLog: 'update:clear-log',
   runUpdate: 'update:run',
   getSettings: 'settings:get',
   setSettings: 'settings:set',

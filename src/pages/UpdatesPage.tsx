@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { RefreshCw, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { RefreshCw, CheckCircle2, XCircle, Loader2, Terminal, Trash2 } from 'lucide-react'
 import type { UpdateLogEntry } from '@shared/types'
 import { useAppStore } from '@/stores/app-store'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,7 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { formatDate } from '@/lib/utils'
 
 export default function UpdatesPage(): React.JSX.Element {
-  const { db, engine } = useAppStore()
+  const { db, engine, updateConsole } = useAppStore()
   const [log, setLog] = useState<UpdateLogEntry[]>([])
 
   const reload = useCallback(async () => {
@@ -48,9 +48,24 @@ export default function UpdatesPage(): React.JSX.Element {
         </CardContent>
       </Card>
 
+      {db?.updating && <UpdateConsole lines={updateConsole} />}
+
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Frissítési napló</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Frissítési napló</CardTitle>
+            {log.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  void window.api.clearUpdateLog().then(() => reload())
+                }
+              >
+                <Trash2 /> Napló törlése
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {log.length === 0 ? (
@@ -84,5 +99,40 @@ export default function UpdatesPage(): React.JSX.Element {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+function UpdateConsole({ lines }: { lines: string[] }): React.JSX.Element {
+  const endRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: 'end' })
+  }, [lines])
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Terminal className="h-4 w-4" /> Konzol
+          <span className="ml-auto font-normal text-muted-foreground">{lines.length} sor</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ScrollArea className="max-h-64 rounded-md bg-zinc-950 dark:bg-black/60">
+          <div className="select-text whitespace-pre-wrap break-all p-3 font-mono text-[11px] leading-relaxed text-zinc-300">
+            {lines.length === 0 ? (
+              <div className="text-zinc-500">Kapcsolódás a frissítési szerverhez…</div>
+            ) : (
+              lines.map((line, i) => (
+                <div key={i} className={line.startsWith('ERROR') ? 'text-amber-400' : undefined}>
+                  {line}
+                </div>
+              ))
+            )}
+            <div ref={endRef} />
+          </div>
+        </ScrollArea>
+      </CardContent>
+    </Card>
   )
 }

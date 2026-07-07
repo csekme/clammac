@@ -35,6 +35,8 @@ interface AppState {
   realtimeDetections: Detection[]
   scanLog: string[]
   scanLogId: string | null
+  /** élő freshclam-kimenet a folyamatban lévő frissítésről */
+  updateConsole: string[]
   connections: NetworkConnection[]
   networkAlerts: NetworkAlert[]
   feedStatus: ThreatFeedStatus | null
@@ -58,6 +60,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   realtimeDetections: [],
   scanLog: [],
   scanLogId: null,
+  updateConsole: [],
   connections: [],
   networkAlerts: [],
   feedStatus: null,
@@ -73,6 +76,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           set({ engine: event.payload })
           break
         case 'db-status':
+          // új frissítés indulásakor ürítjük az előző futás konzolját
+          if (event.payload.updating && !get().db?.updating) set({ updateConsole: [] })
           set({ db: event.payload })
           break
         case 'scan-progress': {
@@ -99,6 +104,9 @@ export const useAppStore = create<AppState>((set, get) => ({
           break
         case 'update-log':
           void get().refresh()
+          break
+        case 'update-progress':
+          set({ updateConsole: [...get().updateConsole, ...event.payload.lines].slice(-500) })
           break
         case 'navigate':
           set({ page: event.payload.page })

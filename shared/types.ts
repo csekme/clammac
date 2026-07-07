@@ -208,6 +208,8 @@ export type AppEvent =
   | { type: 'scan-log'; payload: { scanId: string; lines: string[] } }
   | { type: 'realtime-detection'; payload: Detection }
   | { type: 'update-log'; payload: UpdateLogEntry }
+  /** élő freshclam-kimenet frissítés közben */
+  | { type: 'update-progress'; payload: { lines: string[] } }
   | { type: 'settings-changed'; payload: Settings }
   | { type: 'quarantine-changed'; payload: { count: number } }
   /** main asks the UI to switch page (e.g. Finder Quick Action started a scan) */
